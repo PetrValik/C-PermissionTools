@@ -1,0 +1,390 @@
+---
+title: "HW05: Permissions check"
+layout: "homework"
+list-of-files: ["main.c", "*.c", "*.h"]
+solution-path: /home/kontr/pb071/hw05/checkperms
+publish: now
+deadline-early: 2022-06-10 24:00
+deadline-final: 2022-06-13 24:00
+authors:
+  - Mgr. Lubomír Sedlář: lsedlar@mail.muni.cz
+editors:
+  - xbendel1
+  - xciernik
+  - xburgr
+  - xstepan1
+---
+
+== Predstavenie úlohy
+
+Každý súbor v počítači má stanovené prístupové práva, pomocou ktorých vieme
+určovať kto a akým spôsobom môže s daným súborom manipulovať. Existuje veľa
+rôznych spôsobov ako ich implementovať. Táto úloha je zameraná na
+link:https://cs.wikipedia.org/wiki/P%C5%99%C3%ADstupov%C3%A1_pr%C3%A1va_v_Unixu[prístupové práva v Unixe],
+ktoré výsledný program bude čítať a vypisovať. K tomu vám uľahčuje prácu
+rozhranie POSIX, keďže implementuje väčšinu potrebných funkcií.
+
+=== UNIX práva
+
+Práva v UNIX-ových systémoch sú rozdelené na tri kategórie:
+
+* Možnosť čítať súbor (_read_).
+* Možnosť prepisovať súbor (_write_).
+* Možnosť spustiť súbor ako aplikáciu (_execute_).
+
+=== Triedy práv
+
+Práva udeľujeme individuálne trom rôznym triedam:
+
+* Vlastník (_user_).
+* Skupina vlastníkov (_group_).
+* Všetci ostatní (_others_).
+
+=== Príznaky (flags)
+
+Každý súbor môže mať nastavené tri druhy príznakov:
+
+* Možnosť spustiť súbor s právami vlastníka súboru (`setuid`).
+* Možnosť spustiť súbor s právami skupiny súboru (`setgid`).
+* Povolenie mazať/premenovať súbory v označenom adresári len vlastníkovi
+  adresára, vlastníkovi mazaného súboru alebo používateľovi s `root` právami
+  (_sticky bit_).
+
+Každá trieda má tri rôzne prístupové práva. Dohromady má teda každý súbor 3x3
+práv a dodatočne tri možné príznaky (viď sekciu Poznámky).
+
+== Zadanie
+
+Vytvorte program, ktorý bude rekurzívne čítať všetky súbory v určenom adresári.
+Podľa prepínača buď
+
+* vypíše do špecifikovaného súboru všetky prístupové práva súborov a adresárov,
+  alebo
+* všetkým súborom a adresárom nastaví prístupové práva podľa špecifikovaného
+  súboru.
+
+== Požiadavky
+
+Program `checkperms`, ktorý očakáva 2 až 3 argumenty:
+
+[source, bash]
+----
+checkperms <-e|-i> <PERMISSIONS_FILE> [DIRECTORY_TO_CHECK]
+----
+
+1. Prepínač, ktorý určí správanie programu:
+ a. `-e`, ktorý nastaví program tak, aby do súboru v druhom argumente zapisoval
+    práva súborov v kontrolovanom adresári.
+ b. `-i`, ktorý nastaví program tak, aby podľa súboru v druhom argumente
+    nastavil práva všetkým súborom v kontrolovanom adresári.
+
+2. Cesta k súboru určenému na zapisovanie/čítanie záznamov prístupových práv
+   (`PERMISSIONS_FILE`). Cesta môže byť v absolútnej aj relatívnej forme
+   (napríklad `/some_dictionary/readable_file`, `/file.read`, `~/write_into_me`,
+   `.././here`).
+
+3. Voliteľná cesta k adresáru, ktorý chceme čítať (`DIRECTORY_TO_CHECK`). Cesta
+   môže byť v absolútnej aj relatívnej forme (napríklad `/`, `/var/tmp`, `~`,
+   `.././test`). Pokiaľ tento argument necháme prázdny, tak program začína čítať
+   v aktuálnom adresári (`getcwd(3)`; viď sekciu Manuálové stránky).
+
+Správanie programu, kde prepínač nie je prvým argumentom, nie je špecifikované a nebudeme ho testovať.
+
+=== Režim exportu
+
+V prípade, že je program spustený s prepínačom `-e`, teda napríklad
+
+[source, bash]
+----
+checkperms -e ./cwd_permissions.txt
+----
+
+tak do súboru `./cwd_permissions.txt` zapisuje záznamy všetkých súborov v
+aktuálnom pracovnom adresári (keďže nie je špecifikovaný argument
+`DIRECTORY_TO_CHECK`).
+
+Pokiaľ je špecifikovaný aj `DIRECTORY_TO_CHECK`, teda napríklad
+
+[source, bash]
+----
+checkperms -e ./tmp_permissions.txt /var/tmp
+----
+
+tak do súboru `./tmp_permissions.txt` program zapisuje záznamy súborov
+z `/var/tmp`.
+
+* Záznamy musia byť zoradené lexikograficky a tak, aby adresáre a ich obsah
+  predchádzali ostatným druhom súborov (program teda prečíta a vypíše obsah
+  podadresárov predtým, než vypíše záznamy ostatných druhov súborov v aktuálnom
+  adresári). Pre lepšie pochopenie radenia záznamov si vyskúšajte referenčnú
+  implementáciu.
+* Ku každému súboru program vypíše jeho vlastníka, skupinu a príznaky. Všetky
+  tieto informácie nájdete uložené v poli typu `mode_t` štruktúry `stat`.
+* Prístupové práva program rozdelí poďla _user_, _group_ a _others_ a zapíše
+  `r/w/x`, pokiaľ daná trieda má určité právo, alebo `-`, pokiaľ dané právo
+  nemá.
+* Prvým záznamom v súbore `PERMISSIONS_FILE` bude záznam pre
+  `DIRECTORY_TO_CHECK`, teda exportovaný adresár samotný, s relatívnou cestou
+  `.`.
+* Všetky ostatné výskyty `.` a `..` v obsahu adresárov program ignoruje a
+  nevytvára pre ne záznamy.
+* Cesty všetkých ostatných súborov sú tiež relatívne, začínajúce bez `.` (viď
+  sekciu Možný výstup).
+
+==== Formát výstupu:
+
+Formát každého záznamu vo výslednom súbore bude nasledovný:
+
+----
+# file: <relatívna cesta k súboru>
+# owner: <meno vlastníka súboru>
+# group: <meno skupiny vlastníkov súboru>
+# flags: <setuid, setgid, sticky bit>
+user::<práva vlastníka vo formáte rwx>
+group::<práva skupiny vo formáte rwx>
+other::<práva ostatných vo formáte rwx>
+-- voľný riadok
+----
+
+V prípade, že `setuid`, `setgid` a `sticky bit` sú všetky nastavené na 0, tak je
+riadok s príznakmi vynechaný.
+
+==== Možný výstup:
+
+----
+# file: .
+# owner: xstepan1
+# group: student
+user::rwx
+group::r-x
+other::r-x
+
+# file: dir
+# owner: xstepan1
+# group: student
+# flags: --t
+user::rwx
+group::---
+other::---
+
+# file: dir/test
+# owner: xstepan1
+# group: student
+# flags: ss-
+user::rwx
+group::r-x
+other::r-x
+
+# file: dir/test/b.txt
+# owner: xstepan1
+# group: student
+user::rw-
+group::r--
+other::r--
+
+# file: dir/a.txt
+# owner: xstepan1
+# group: student
+user::rw-
+group::r--
+other::r--
+----
+
+Všimnite si radenie adresárov a ich obsahu pred súbormi - `dir/a.txt` je síce
+abecedne pred `dir/test`, ale keďže je `dir/test` adresár, tak je vo výpise
+skôr. Zároveň je vo výpise skôr aj jeho obsah, teda `dir/test/b.txt`.
+
+=== Režim importu
+
+V prípade, že je program spustený s prepínačom `-i`, teda napríklad
+
+[source, bash]
+----
+checkperms -i ./tmp_permissions.txt /var/tmp
+----
+
+tak zo súboru `./tmp_permissions.txt` číta a postupne nastavuje prístupové práva
+a príznaky všetkým súborom v adresári `/var/tmp`.
+
+* Očakávame, že súbor `./tmp_permissions.txt` má rovnaký formát, v akom by bol
+  generovaný pomocou prepínača `-e`.
+* Vlastníka a skupinu program nenastavuje.
+  V prípade nezhody vlastníka alebo skupiny s importovanými program vypíše na
+  `stderr` chybovú hlášku: `<User/Group> of file <file_name> is incorrect`
+* V prípade, že sa nezhoduje vlastník aj skupina, tak na `stderr` program vypíše
+  dve chybové hlášky - prvú ohľadom vlastníka, druhú ohľadom skupiny. Za nezhodu
+  sa považuje aj prípad neexistujúcej skupiny.
+
+Po ukončení programu sú prístupové práva všetkých súborov v `/var/tmp` nastavné
+rovnako ako v súbore `./tmp_permissions.txt` a na `stderr` sú vypísané
+informácie o potenciálnych nezhodách medzi vlastníkmi a skupinami.
+
+=== Chybové hlášky
+
+Váš program by mal ďalej vypisovať relevantné chybové hlášky aj v prípadoch, keď
+
+* nevie prečítať súbor,
+* nedokáže alokovať dostatok pamäte,
+* narazí na špeciálny súbor (viď sekciu Poznámky),
+* používateľ zadá nesprávny počet argumentov
+
+a v ostatných podobných prípadoch, na ktoré počas svojho behu narazí. Ak sa
+nepodarí v režime importu nastaviť súboru práva, ide o priepustnú chybu -
+program vypíše chybovú hlášku, ale neskončí.
+
+Medzi kontrolovaným adresárom a súborom s právami sa súbory môžu líšiť.
+Priepustnou chybou je prípad v režime importu, keď v `DIRECTORY_TO_CHECK`
+chýbajú súbory so záznamom v `PERMISSIONS_FILE` (opačný prípad, teda keď sú v
+`DIRECTORY_TO_CHECK` súbory naviac, nie je chybou).
+
+Ak používateľ zadal nesprávny počet argumentov, program okrem hlášky na `sdterr`
+vypíše aj ľubovoľnú zrozumiteľnú nápovedu na `stdout`.
+
+V prípade akejkoľvek chyby počas behu, či už fatálnej alebo priepustnej, je
+návratovou hodnotu programu `1`. Chybové hlášky sa pre každý typ chyby musia
+líšiť a každá musí byť na jednom riadku.
+
+== Bonusové rozšírenia
+
+=== Globovanie (2 body)
+
+Implementujte možnosť
+link:https://en.wikipedia.org/wiki/Glob_(programming)[globovania] v cestách
+súborov v `PERMISSIONS_FILE`. Pre získanie plného bonusu je treba pridať podporu
+pre najviac jednu hviezdičku pre každý segment<<tag, ^1^>> v ceste. Hviezdička v
+danom segmente predstavuje ľubovoľný podreťazec. Globovanie pre iné znaky nebude
+testované.
+
+* Hviezdičky v názve súboru musia byť uniknuté spätným lomítkom<<tag2, ^2^>> (`\*`).
+* Spätné lomítko v názve musí byť tiež uniknuté spätným lomítkom (`\\`).
+* Ak sa spätné lomítko nachádza pred akýmkoľvek iným znakom, je to chyba, o
+  ktorej program musí používateľa informovať.
+* Skryté adresáre `.` a `..` sú pri globovaní ignorované.
+
+Príklady vzorov ciest s využitím globovania:
+
+* Vzor `/home/*` sa namapuje na ľubovoľný neskrytý súbor v zložke /home/.
+* Vzor `/home/pb071*` sa namapuje na všetky súbory v `/home` s názvom
+  obsahujúcim prefix `pb071`, napríklad `/home/pb071` a
+  `/home/pb071_best_subject`, ale **nie** súbor `/home/pb07`.
+* Vzor `/home/*/hw05` sa namapuje napríklad na `/home/pb071/hw05` a
+  `/home/pb173/hw05`, ale **nie** na `/home/pb071/hw/hw05` (pretože hviezdička
+  sa vzťahuje len k jednému segmentu).
+* Vzor `/home/\*\\` sa namapuje iba na súbor `/home/*\`. Znaky `*` a `\` sú
+  uniknuté, takže strácajú svoj špeciálny význam.
+* Vzor `/home/.*` sa namapuje na ľubovoľný skrytý súbor, ale **nie** na `.`
+  a `..`.
+* Cesty `/ho*me*` alebo `/home/hello\o` sú chybné (kvôli viac než jednej
+  hviezdičke v segmente a nesprávne použitému spätnému lomítku).
+
+[[tag]]
+^1^ Segmentom cesty je reťazec s názvom jedného súboru medzi znakmi `/`.
+[[tag2]]
+^2^ Nespisovný výraz. V spisovnej slovenčine je znak nazývaný _lomka_, ale pre
+príjemnejšie čítanie ponechávame použitie slova _lomítko_.
+
+=== Dlhé verzie prepínačov (1 bod)
+
+Implementujte podporu dlhých verzií prepínačov:
+
+* `--export`, ktorý predstavuje rovnaké správanie ako `-e`
+* `--import`, ktorý predstavuje rovnaké správanie ako `-i`
+
+Bude sa vám hodiť funkcia `getopt_long(3)`. Pri jej použití nezabudnite pri
+kompilácii pomocou `gcc` pridať prepínač `-D_GNU_SOURCE`, alebo v prípade
+kompilácie pomocou CMake odkomentovať príkaz `target_compile_definitions` v
+súbore `CMakeLists.txt`.
+
+== Poznámky
+
+Váš program bude vedieť prečítať celý adresár (`opendir(3)`, `closedir(3)`,
+`readdir(3)`) a pre každý súbor
+
+* zistí jeho prístupové práva (`fstat(2)`), vlastníka (`getpwuid(3)`) a skupinu
+  (`getgrgid(3)`),
+* nastaví prístupové práva (`chmod(2)`).
+
+---
+
+Program počas svojho behu môže naraziť na rôzne typy súborov. Zaujímajú nás len
+bežné súbory (regular files) a adresáre (viď makrá `S_ISREG` a `S_ISDIR` v
+`inode(7)`). Pri nájdení iného typu súboru program vypíše chybovú hlášku a skončí.
+
+---
+
+Rovnako ako `.` a `..`, aj `~` je špeciálnym znakom shellu. Po expanzii sa `~`
+nahradí domovským adresárom `/home/<user>` (obsahom premennej `$HOME`).
+Špeciálne spracovanie tohto znaku teda nie je nutné implementovať.
+
+---
+
+Vyskúšajte si príkaz `ll(1)`/`ls -l(1)` v UNIX-ovom termináli:
+
+[source, bash]
+----
+drwxr-xr-x. 2 xbendel1 student 10 13. pro 15.01 test-directory
+-rwxr--r--. 1 xbendel1 student  0 13. pro 15.01 test.exe
+-rw-r--r--. 1 xbendel1 student  0 13. pro 15.00 test.subor
+----
+
+Prístupové práva sú vypísané na začiatku každého riadku.
+Prvý znak je `d`, ak je súbor adresár, inak je prvým znakom `-`.
+Nasledujú tri triedy reprezentované trojicami prístupových práv: `r` = read,
+`w` = write, `x` = execute v poradí uuu = _user_, ggg = _group_, ooo = _others_.
+Znak `-` v trojici naznačuje, že triedy dané právo nemá.
+
+V prípade použitia príznakov sa mení vždy tretí znak príslušnej trojice.  Ak je
+nastavený `setuid`, v prvej trojici je znak `x` nahradený za `s` a `-` za `S`.
+V prípade nastaveného `setgid` sa znaky `x` a `-` menia rovnako v druhej
+trojici.  Pre nastavený sticky bit sa mení znak `x` za `t` a znak `-` za `T`
+v tretej trojici.
+
+Napríklad `drwxr-xr-x` znamená, že súbor je adresár a iba vlastník má právo do
+neho zapisovať, ale každý má právo ho čítať a spúštať (v prípade adresára
+otvoriť); nie je nastavený žiaden príznak.
+
+`-rwsr-Sr-t` znamená, že vlastník môže čítať, zapisovať a spúšťať; skupina môže
+len čítať; ostatní môžu čítať a spúšťať; všetky príznaky sú nastavené.
+
+=== Manuálové stránky
+
+Manuálové stránky sú na Lixových systémoch rozdelené do viacerých sekcií. Názvy
+niektorých dokumentovaných položiek sa nachádzajú vo viacerých sekciách, preto
+sa pri spúšťaní príkazu `man` definuje aj číslo sekcie. Napríklad manuálové
+stránky `man printf` dokumentujú shellový príkaz, zatiaľ čo `man 3 printf`
+dokumentuje funkciu štandardnej knižnice jazyka C. `man 3 printf` je v texte
+referované ako `printf(3)`.
+
+Manuálové stránky POSIX-u nájdete link:https://linux.die.net/man/[tu].
+Ak pracujete na Ubuntu, môžete si stiahnuť balíček `manpages-posix`.
+
+Na Aise môže `man 3` referovať na manuálové stránky jazyka Perl - v takom
+prípade je treba použiť `man 3p`.
+
+=== Kompilácia
+
+Ak svoj program kompilujete bez použitia CMake, budete musieť pri kompilácii
+pridať prepínač pre povolenie používania funkcií knižnice POSIX. Kompilácia s
+povoleným štandardom POSIX.1-2008 vyzerá nasledovne:
+
+[source, bash]
+----
+gcc -std=c99 -Wall -Wextra -pedantic -D_POSIX_C_SOURCE=200809L ...
+----
+
+[CAUTION]
+.POZOR
+====
+POSIX je UNIX-ové rozhranie a niektoré jeho funkcie nemusia fungovať na Windows
+úplne správne. Pouvažujte nad použitím jednej z týchto možností:
+
+* SSH terminál a pripojenie na Aisu. Napríklad
+  link:https://www.putty.org/[Putty]. Veľmi dobre sa kombinuje s SFTP/SCP
+  klientom, ako je napríklad link:https://winscp.net/eng/download.php[WinSCP].
+* Virtual machine s Linuxom. Napríklad link:https://www.virtualbox.org/[Virtual Box].
+* Pracovať v PC hale na počítačoch so systémom Linux alebo macOS.
+
+V prípade, že sa rozhodnete pracovať na Windows, nemôžeme zaručiť plne správne
+správanie programu. Môže v ňom nastať chyba, ktorú na Windows neodhalíte, ale na
+Aise a v testoch ju nájdeme.
+====
