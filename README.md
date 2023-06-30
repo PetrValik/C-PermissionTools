@@ -1,4 +1,10 @@
-# Checkperms Assignment Structure
+# Permission-tools
+
+It was a school project. We create a program which changes permissions in the directory.
+To be able to work on this project I need to use POSIX so it was really interesting.
+
+More information on the project and assignment are located in the file assignment.ad.
+
 
 ## How to extend the codebase
 
